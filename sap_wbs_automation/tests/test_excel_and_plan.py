@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from sapwbs.config import AppConfig, load_config, ConfigError
-from sapwbs.excel_reader import WorkbookReader, detect_header, match_columns, SheetGrid, score_header
-from sapwbs.model import ERROR, SourceRow, WorkbookContext
-from sapwbs.planner import Planner
-from sapwbs.rules import RuleEngine, build_activity_text, clean_activity_name, split_activities
-from sapwbs.textutil import format_quantity, norm, parse_number
+from sap_wbs import AppConfig, load_config, ConfigError
+from sap_wbs import WorkbookReader, detect_header, match_columns, SheetGrid, score_header
+from sap_wbs import ERROR, SourceRow, WorkbookContext
+from sap_wbs import Planner
+from sap_wbs import RuleEngine, build_activity_text, clean_activity_name, split_activities
+from sap_wbs import format_quantity, norm, parse_number
 
 
 # --------------------------------------------------------------------------- #
@@ -193,13 +193,3 @@ def test_config_yaml_roundtrip(tmp_path):
     path.write_text("sap:\n  tranzactie: CJ02\n", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(path)
-
-
-def test_shipped_config_loads():
-    from pathlib import Path
-
-    cfg = load_config(Path(__file__).resolve().parents[1] / "config.yaml")
-    defaults = AppConfig()
-    assert cfg.excel.columns == defaults.excel.columns
-    assert cfg.rules.networks == defaults.rules.networks
-    assert cfg.wbs.level4_code == defaults.wbs.level4_code

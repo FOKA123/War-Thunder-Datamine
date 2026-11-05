@@ -1,6 +1,6 @@
 # Automatizare SAP: WBS nivel 3/4 + norme din devizul general
 
-Scriptul citește devizul general (`.xlsm`), deduce structura WBS (nivel 3 și 4), activitățile din
+Tot codul este într-un singur fișier: **`sap_wbs.py`**. Scriptul citește devizul general (`.xlsm`), deduce structura WBS (nivel 3 și 4), activitățile din
 rețelele standard și normele (serviciile) cu cantitățile lor. Apoi le introduce în SAP prin
 SAP GUI Scripting (`win32com.client`), în tranzacția de proiect (implicit `CJ02`).
 
@@ -18,25 +18,27 @@ Proiect ─┬─ +M1  MEDIE TENSIUNE                       (nivel 3)
 ## Instalare (Windows, pe stația cu SAP GUI)
 
 1. Python 3.9 sau mai nou.
-2. `pip install -r requirements.txt`
-3. Activați SAP GUI Scripting:
+2. `pip install openpyxl pandas pywin32` (sau `pip install -r requirements.txt`).
+3. Copiați `sap_wbs.py` într-un folder. Logurile și rapoartele se scriu lângă el
+   (`logs/`, `rapoarte/`).
+4. Activați SAP GUI Scripting:
    - în SAP GUI: *Options → Accessibility & Scripting → Scripting → Enable scripting*;
      debifați notificările „When a script attaches / opens a connection”;
    - pe server, parametrul `sapgui/user_scripting = TRUE` (RZ11; îl setează echipa Basis).
-4. Deschideți SAP Logon și autentificați-vă. Scriptul se atașează la o sesiune existentă,
+5. Deschideți SAP Logon și autentificați-vă. Scriptul se atașează la o sesiune existentă,
    de preferință una aflată în meniul principal.
 
 ## Utilizare
 
 ```bat
 REM 1. Doar citire + raport pre-flight (nu atinge SAP). Rulați întotdeauna întâi asta.
-python run.py "C:\Devize\NEC_v20.xlsm" --dry-run
+python sap_wbs.py "C:\Devize\NEC_v20.xlsm" --dry-run
 
 REM 2. Primul test în SAP: un singur element de nivel 4, cu confirmare înainte
-python run.py "C:\Devize\NEC_v20.xlsm" --max-n4 1 --pas-cu-pas
+python sap_wbs.py "C:\Devize\NEC_v20.xlsm" --max-n4 1 --pas-cu-pas
 
 REM 3. Rulare completă
-python run.py "C:\Devize\NEC_v20.xlsm"
+python sap_wbs.py "C:\Devize\NEC_v20.xlsm"
 ```
 
 | Opțiune | Rol |
@@ -48,17 +50,27 @@ python run.py "C:\Devize\NEC_v20.xlsm"
 | `--pas-cu-pas` | cere confirmare (Da / Nu / Stop) înainte de fiecare element de nivel 4 |
 | `--recalculeaza` | recalculează formulele în Excel înainte de citire (dacă fișierul nu a fost salvat de Excel) |
 | `--continua-cu-avertizari` | rulează în SAP chiar dacă planul are erori (de ex. lipsește codul de buget) |
-| `--config alt.yaml` | alt fișier de configurare |
+| `--config alt.yaml` | fișier YAML opțional care suprascrie configurarea din script |
 
 Codurile de ieșire: `0` = totul OK; `1` = erori (de plan sau la unele rânduri); `2` = fișier sau
 configurație invalidă; `3` = conexiunea SAP a eșuat.
 
 ## Cum este dedusă structura devizului
 
-Nicio coloană nu este indexată fix. Totul se configurează în `config.yaml`.
+Nicio coloană nu este indexată fix. Totul se configurează în secțiunea **02. CONFIGURARE** din
+`sap_wbs.py` (clasele `ExcelConfig`, `RulesConfig`, `WbsConfig`, `SapConfig`). Opțional, un fișier
+`config.yaml` pus lângă script (sau dat cu `--config`) suprascrie doar valorile scrise în el, de exemplu:
+
+```yaml
+sap:
+  system_name: PRD
+wbs:
+  budget_code:
+    cell: "Date!C7"
+```
 
 1. **Detectarea antetului.** În fiecare foaie vizibilă se scanează primele 40 de rânduri. Fiecare
-   celulă este comparată cu alias-urile din `excel.columns`, fără să conteze majusculele, diacriticele
+   celulă este comparată cu alias-urile din `ExcelConfig.columns`, fără să conteze majusculele, diacriticele
    sau punctuația. Potrivirea exactă valorează 100 de puncte, „începe cu” 60, „conține cuvântul” 30.
    Antetul este rândul cu scorul maxim care conține coloanele obligatorii (cod, cantitate, rețea).
    Foile fără ele sunt ignorate. De exemplu, în foile „Norme” antetul e pe rândul 17
@@ -78,11 +90,11 @@ Nicio coloană nu este indexată fix. Totul se configurează în `config.yaml`.
    3. contextul din foaia Date: *Nivel Tensiune* (MT/JT) și *Soluție proiectată* (LEA/LES);
    4. rețelele deja folosite neambiguu în același deviz (ex. un material XD2 implică A451);
    5. cuvintele cheie din descrierea normei (demontare / înlocuire / montare);
-   6. prima variantă, cu avertizare. Puneți `ambiguity_fallback: skip` ca să sară rândul în loc.
+   6. prima variantă, cu avertizare. Puneți `ambiguity_fallback = "skip"` ca să sară rândul în loc.
 
    Orice alegere euristică apare ca **avertizare** în raportul pre-flight.
 6. **Nivelul 3.** Se citește din tabelul „Activitate SAP / Nivel 3” din foaia Date. Dacă tabelul
-   lipsește, se folosește `rules.networks`.
+   lipsește, se folosește `RulesConfig.networks`.
 7. **Nivelul 4 (convenția aleasă).** Fiecare rețea are propriile elemente de nivel 4:
    - cantitatea din coloana **PTk** merge pe `+{rețea}R{k}`, cu denumirea „{bază} PT{k}”
      (ex. `+441R2 CLADIRE PT2`);
@@ -107,7 +119,7 @@ exista în Excel, oricare dintre variantele de mai jos funcționează, fără ni
 - **Nume definit** (recomandat): selectați celula și dați-i numele `COD_BUGET`
   (*Formulas → Name Manager*). Funcționează oriunde ar fi celula.
 - **Etichetă:** scrieți `Cod buget` într-o celulă din foaia `Date` și valoarea în celula din dreapta.
-- **Adresă fixă:** în `config.yaml`, `wbs.budget_code.cell: "Date!C7"`.
+- **Adresă fixă:** în `WbsConfig.budget_code` puneți `cell="Date!C7"` (sau în `config.yaml`, `wbs.budget_code.cell`).
 
 Definiția de proiect folosește același mecanism: numele `COD_PROIECT` sau eticheta `Cod proiect SAP`.
 Alternativ, o dați cu `--proiect`. Fără cod de buget sau fără proiect, scriptul nu atinge SAP-ul.
@@ -144,7 +156,7 @@ există deja nu se mai creează. Apar ca `EXISTENT` în raport.
 - **Eroare la un element WBS:** modificările nesalvate se abandonează (`/n`) și se trece la
   următorul element. După 3 eșecuri consecutive execuția se oprește, de exemplu dacă sesiunea s-a închis.
 - **Pop-up-uri:**
-  - cererile de valori (AMC, MBT1 la crearea rețelei) se completează din `sap.network_popup_values`;
+  - cererile de valori (AMC, MBT1 la crearea rețelei) se completează din `SapConfig.network_popup_values`;
   - confirmările Da/Nu primesc răspuns automat;
   - jurnalul de erori la salvare se raportează ca eroare;
   - informările se închid cu Enter.
@@ -157,7 +169,7 @@ există deja nu se mai creează. Apar ca `EXISTENT` în raport.
 
 ## De verificat la prima rulare în SAP
 
-ID-urile GUI sunt toate în `sapwbs/sap_ids.py`. Cele din înregistrare sunt sigure. Următoarele nu
+ID-urile GUI sunt toate în clasa `SapIds` din `sap_wbs.py`. Cele din înregistrare sunt sigure. Următoarele nu
 apar în înregistrare, deci verificați-le cu `--max-n4 1 --pas-cu-pas`. Dacă diferă, o înregistrare
 scurtă a pasului respectiv e suficientă pentru corectură.
 
@@ -166,7 +178,7 @@ scurtă a pasului respectiv e suficientă pentru corectură.
 | Câmpul „Definiție proiect” pe ecranul inițial | `INITIAL_PROJECT_FIELD = wnd[0]/usr/ctxt*PROJ-PSPID` | neînregistrat |
 | Butonul spre lista WBS | `BTN_WBS_OVERVIEW = wnd[0]/tbar[1]/btn[5]` | dedus din înregistrare (folosit după salvare) |
 | Închiderea detaliului de activitate | `ACT_DETAIL_CLOSE_BTN = wnd[1]/tbar[0]/btn[5]` | apăsat după F3 din servicii |
-| Formatul codului WBS în listă | `cj02.ident_matches` | acceptă `+453R1` și `C-0001-453R1` |
+| Formatul codului WBS în listă | funcția `ident_matches` | acceptă `+453R1` și `C-0001-453R1` |
 
 Limitări cunoscute:
 
@@ -176,24 +188,22 @@ Limitări cunoscute:
 - Activitățile interne aduse de rețeaua standard (tab-ul intern) nu sunt șterse. Înregistrarea
   procedează la fel.
 
-## Structura proiectului
+## Structura fișierului `sap_wbs.py`
 
-```
-sap_wbs_automation/
-├── run.py                 # punctul de intrare (python run.py -h)
-├── config.yaml            # alias-uri coloane, reguli, convenții WBS, parametri SAP
-├── sapwbs/
-│   ├── config.py          # configurația (dataclasses + încărcare YAML validată)
-│   ├── excel_reader.py    # detectarea antetelor, extragerea normelor, contextul din foaia Date
-│   ├── rules.py           # motorul de reguli: rețea, activitate, sufix, denumiri WBS
-│   ├── planner.py         # arborele N3 → N4 → activitate → servicii + controale
-│   ├── report.py          # rapoartele Excel (plan / rezultate)
-│   ├── sap_ids.py         # toate ID-urile SAP GUI (din Script1.vbs)
-│   ├── sap_session.py     # conexiune, bara de stare, pop-up-uri, tabele SAP
-│   ├── cj02.py            # acțiunile din tranzacție (creare WBS, rețea, servicii)
-│   ├── runner.py          # execuția planului cu tratarea erorilor
-│   └── cli.py, logging_setup.py, excel_recalc.py, textutil.py, model.py
-└── tests/                 # pytest: deviz sintetic + SAP GUI simulat
-```
+| Secțiune | Conținut |
+|---|---|
+| 01 | utilitare text și numere (normalizare, format cantități SAP) |
+| 02 | **CONFIGURARE**: alias-uri coloane, reguli, convenții WBS, parametri SAP |
+| 03 | structuri de date (rânduri sursă, plan) |
+| 04 | citirea devizului: detectarea antetelor, extragerea normelor, contextul din foaia Date |
+| 05 | motorul de reguli: rețea, activitate, sufix, denumiri WBS |
+| 06 | planul ierarhic N3 → N4 → activitate → servicii + controale |
+| 07 | rapoartele Excel (plan / rezultate) |
+| 08 | `SapIds`: toate ID-urile SAP GUI (din Script1.vbs) |
+| 09 | conexiunea SAP, bara de stare, pop-up-uri, tabele SAP |
+| 10 | acțiunile din tranzacție (`create_wbs_element`, `add_norm_to_activity` ...) |
+| 11 | execuția planului cu tratarea erorilor |
+| 12–14 | recalculare Excel, logging, linia de comandă |
 
-Testele rulează fără SAP și fără Windows: `pip install pytest`, apoi `python -m pytest`.
+Folderul `tests/` (opțional) conține un deviz sintetic și un SAP GUI simulat. Testele rulează fără SAP
+și fără Windows: `pip install pytest`, apoi `python -m pytest` din acest folder.

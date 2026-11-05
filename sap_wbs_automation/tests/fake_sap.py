@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-from sapwbs import sap_ids as ids
+from sap_wbs import ids
 
 
 class _Collection:

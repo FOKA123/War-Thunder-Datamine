@@ -112,6 +112,6 @@ def workbook(tmp_path) -> Path:
 
 @pytest.fixture
 def cfg():
-    from sapwbs.config import AppConfig
+    from sap_wbs import AppConfig
 
     return AppConfig()

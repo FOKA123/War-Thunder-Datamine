@@ -1,13 +1,13 @@
 """Testarea fluxului SAP pe un SAP GUI simulat (tests/fake_sap.py)."""
 from __future__ import annotations
 
-from sapwbs.cj02 import (ActivityRow, WbsRow, choose_rows_to_keep, ident_matches, plan_copy_rounds,
+from sap_wbs import (ActivityRow, WbsRow, choose_rows_to_keep, ident_matches, plan_copy_rounds,
                          plan_wbs_order)
-from sapwbs.excel_reader import WorkbookReader
-from sapwbs.model import ActivityPlan
-from sapwbs.planner import Planner
-from sapwbs.runner import ERROR, EXISTENT, OK, PlanRunner
-from sapwbs.sap_session import SapSession
+from sap_wbs import WorkbookReader
+from sap_wbs import ActivityPlan
+from sap_wbs import Planner
+from sap_wbs import PlanRunner, ST_ERROR as ERROR, ST_EXISTENT as EXISTENT, ST_OK as OK
+from sap_wbs import SapSession
 
 from fake_sap import FakeSap
 
