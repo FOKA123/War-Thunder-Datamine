@@ -1,0 +1,10 @@
+# rezultatele rulărilor
+logs/
+rapoarte/
+# devizele conțin date confidențiale: nu se adaugă în repository
+*.xlsm
+*.xlsx
+*.xls
+__pycache__/
+*.pyc
+.pytest_cache/
